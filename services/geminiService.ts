@@ -19,14 +19,16 @@ const MENTOR_SYSTEM_INSTRUCTION = `
 `;
 
 // Helper to clean markdown code blocks from JSON response
-const cleanAndParseJSON = (text: string) => {
+const cleanAndParseJSON = (text: string): any => {
   try {
+    if (!text) return null;
     // Remove ```json, ```, and trim whitespace
     const cleanText = text.replace(/```(?:json)?|```/g, '').trim();
     return JSON.parse(cleanText);
   } catch (e) {
     console.error("JSON Parse Error:", e);
-    throw e;
+    // Return null to allow caller to handle fallback
+    return null;
   }
 };
 
@@ -40,10 +42,11 @@ export const createChatSession = (): Chat => {
   });
 };
 
+// Return Promise<any> to avoid strict type build errors with SDK versions on Vercel
 export const sendMessageStream = async (
   chat: Chat, 
   message: string
-) => {
+): Promise<any> => {
   return chat.sendMessageStream({ message });
 };
 
@@ -53,16 +56,21 @@ export const breakDownGoal = async (goalTitle: string): Promise<string[]> => {
       model: 'gemini-2.5-flash',
       contents: `사용자의 목표: "${goalTitle}". 
       이 목표를 당장 시작할 수 있도록 10분 이내에 완료 가능한 '아주 작은 마이크로 실행 단계' 3가지로 쪼개주세요.
-      오직 JSON 배열(string array) 형태의 텍스트만 반환하세요. 마크다운 포맷팅 없이.`,
+      오직 JSON 배열(string array) 형태의 텍스트만 반환하세요. 마크다운 포맷팅 없이.
+      예시: ["책상에 앉기", "책 펼치기", "1페이지만 읽기"]`,
       config: {
         responseMimeType: 'application/json',
       }
     });
     
     const text = response.text;
-    if (!text) return ["노트 펼치기", "1분 동안 쳐다보기", "제목만 적어보기"];
+    const parsed = cleanAndParseJSON(text || '');
     
-    return cleanAndParseJSON(text) as string[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed as string[];
+    }
+    
+    return ["1단계: 일단 자리에 앉기", "2단계: 심호흡 한 번 하기", "3단계: 아주 조금만 시작하기"];
   } catch (error) {
     console.error("Error breaking down goal:", error);
     return ["1단계: 일단 자리에 앉기", "2단계: 심호흡 한 번 하기", "3단계: 아주 조금만 시작하기"];
@@ -82,8 +90,13 @@ export const generateSpark = async (): Promise<{title: string, content: string}>
     });
     
     const text = response.text;
-    if (!text) throw new Error("No response");
-    return cleanAndParseJSON(text);
+    const parsed = cleanAndParseJSON(text || '');
+
+    if (parsed && parsed.title && parsed.content) {
+      return parsed;
+    }
+    
+    throw new Error("Invalid response format");
   } catch (error) {
     return {
       title: "잠시 숨 고르기",

@@ -3,6 +3,7 @@ import { Message } from '../types';
 
 // Initialize the client. 
 // NOTE: In a production app, handle API key security carefully.
+// Vercel 배포 시 Environment Variables에 API_KEY를 설정해야 합니다.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const MENTOR_SYSTEM_INSTRUCTION = `
@@ -17,6 +18,18 @@ const MENTOR_SYSTEM_INSTRUCTION = `
 5. 말투는 부드럽고 친절한 한국어 존댓말(해요체)을 사용하세요. 이모지를 적절히 사용하여 따뜻한 느낌을 주세요.
 `;
 
+// Helper to clean markdown code blocks from JSON response
+const cleanAndParseJSON = (text: string) => {
+  try {
+    // Remove ```json, ```, and trim whitespace
+    const cleanText = text.replace(/```(?:json)?|```/g, '').trim();
+    return JSON.parse(cleanText);
+  } catch (e) {
+    console.error("JSON Parse Error:", e);
+    throw e;
+  }
+};
+
 export const createChatSession = (): Chat => {
   return ai.chats.create({
     model: 'gemini-2.5-flash',
@@ -30,7 +43,7 @@ export const createChatSession = (): Chat => {
 export const sendMessageStream = async (
   chat: Chat, 
   message: string
-): Promise<AsyncIterable<GenerateContentResponse>> => {
+) => {
   return chat.sendMessageStream({ message });
 };
 
@@ -49,7 +62,7 @@ export const breakDownGoal = async (goalTitle: string): Promise<string[]> => {
     const text = response.text;
     if (!text) return ["노트 펼치기", "1분 동안 쳐다보기", "제목만 적어보기"];
     
-    return JSON.parse(text) as string[];
+    return cleanAndParseJSON(text) as string[];
   } catch (error) {
     console.error("Error breaking down goal:", error);
     return ["1단계: 일단 자리에 앉기", "2단계: 심호흡 한 번 하기", "3단계: 아주 조금만 시작하기"];
@@ -70,7 +83,7 @@ export const generateSpark = async (): Promise<{title: string, content: string}>
     
     const text = response.text;
     if (!text) throw new Error("No response");
-    return JSON.parse(text);
+    return cleanAndParseJSON(text);
   } catch (error) {
     return {
       title: "잠시 숨 고르기",

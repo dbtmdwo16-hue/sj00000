@@ -1,10 +1,18 @@
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { Message } from '../types';
 
-// Initialize the client. 
-// NOTE: In a production app, handle API key security carefully.
-// Vercel 배포 시 Environment Variables에 API_KEY를 설정해야 합니다.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize the client.
+// Handle 'process is not defined' error safely for browser environments where polyfills might be missing.
+const getApiKey = (): string => {
+  try {
+    return process.env.API_KEY || '';
+  } catch (e) {
+    console.warn("API Key environment variable not found or process is not defined.");
+    return '';
+  }
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 const MENTOR_SYSTEM_INSTRUCTION = `
 당신은 따뜻하고 공감 능력이 뛰어난 AI 멘토 "도약"입니다. 
